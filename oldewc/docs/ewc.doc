@@ -1,0 +1,597 @@
+<<!
+Lee Daniel Crocker
+January, 2008
+>>
+
+== Introduction ==
+
+This document describes a text format ("EWC") based on
+[[http://wikicreole.org/|WikiCreole]] with extensions and
+style markup.
+This document is written in EWC itself, so the source text serves
+as a fairly complete example, albeit one that is necessarily
+much more complex than typical.
+
+EWC is an errorless syntax.
+This means that any sequence of characters on input has a specific
+unique meaning, and an EWC processor should not fail parsing input
+(though it might certainly not parse it in a way the user expects!)
+Generally speaking, any markup that isn't formed exactly as
+expected is simply ignored, causing the output to contain the
+improper markup characters.
+External code is invoked to process //extensions//, and such code
+is strongly encouraged to be similarly tolerant of malformed input,
+though this cannot be enforced.
+
+Although EWC is intended for HTML applications, it can be parsed
+into a document object model that can be output in other forms.
+DocBook, in particular, should be relatively simple.
+
+=== General rules ===
+
+The syntax of EWC involves only ASCII (7-bit) text, though source
+texts may be in any format and encoding compatible with Unicode.
+Internally, all data is maintained in Unicode, and all code
+points outside the ASCII range just represent themselves.
+
+Regardless of its original storage format or structure, a text is
+interpreted as a sequence of //lines//, each of which is a sequence
+of Unicode code points.
+Code points 0x0000--0x0008, 0x000A--0x001F, and 0x007F--0x009F
+should be removed from the input and are ignored (note that this
+includes the standard line-end characters; this just means that the
+input is broken into lines by whatever standard means the operating
+system has, but line-end characters //within// the resulting lines
+are not allowed and should be removed.)
+Whitespace at the end of each line is ignored and should be removed.
+The tab character 0x0009 is allowed, but has no specific meaning
+in the syntax other than as general whitespace, and is simply passed
+through to the output (unless it appears where the syntax would
+remove whitespace).
+Treatment of codes in Unicode "private use" areas is undefined.
+
+There is no enforced maximum on the allowable length of a line.
+Applications should preserve EWC exactly as they encounter it,
+except for removing whitespace and illegal characters as specified.
+There are applications, though, that may wish to temporarily break
+long lines into smaller ones to facilitate editing or display in various
+contexts (for example, to display diffs).
+Such applications must reassemble the lines as found before
+committing them back to storage.
+It is recommended that for this purpose, lines should be broken
+at the last space character (codes 0x0009 or 0x0020) on or before
+the seventy-sixth character of the line.
+Where there are no space characters in the first seventy-six
+characters of the line, the line is broken after the seventy-fifth, and
+some visual indication (preferably distinguishable from an ordinary
+hyphen character) of this fact should be made.
+The specification of a line-breaking procedure in this document is
+intended to make the user experience of EWC applications more
+consistent in those areas where line breaking is necessary or useful.
+
+Blank lines (that is, lines with zero characters) are also significant
+in the syntax.
+Lines containing only spaces are considered "blank" for the purposes
+of this syntax.
+Multiple blank lines are syntactically equivalent to a single blank line,
+and can be collapsed.
+One or more lines blank lines at the end of an EWC text may all be removed,
+as can blank lines at the beginning.
+
+==== Escape character
+
+The tilde (##~~##, 0x007E) character acts as a general-purpose escape,
+in that it will supress the special treatment of the following character.
+To produce a tilde in the output, use two consecutive tildes.
+This procedure happens at the very first level of text processing.
+
+==== Line continuation
+
+Input lines that end with an odd number of backslash (##\##, 0x005C)
+characters cause the parser to concatenate that line with the next,
+removing the last backslash, and treating the result as a single line
+for further processing.
+Multiple lines may be continued in this way.
+This procedure happens immediately after escape character handling,
+so that one can use a tilde to escape the a final backslash to render a
+line ending with a backslash.
+Lines continued in this way
+can be treated as single lines for all purposes.
+Lines ending with an even number of backslashes are not affected, as it
+is assumed that these will be later interpreted as forced line breaks
+(see below).
+
+== Block-level structure
+
+An input text as a whole will be divided into block-level elements:
+paragraphs, headings, horizontal rules, lists (three types), and tables.
+Block-level elements are separated by blank lines in the input, or by
+any syntax that indicates the transition from one block type to another.
+For example, the beginning of a table or list ends the previous paragraph,
+but a blank line is needed to separate two tables or two paragraphs.
+
+=== Paragraphs
+
+Text with no other indication of syntax is placed into paragraphs.
+Indentations and other whitespace within paragraphs are ignored in the
+final output, as are line ends unless a "preformatted" style (see below)
+specifies that they are preserved.
+
+=== Line breaks
+
+Two backslash characters in source text indicates a
+forced line break.
+That is, the following text will be rendered on a new line, while remaining
+in the current paragraph or other block element.
+A line containing nothing but two backslashes indicates a paragraph
+break within an enclosing block such as a table cell or list item, and can
+be used where a blank line would otherwise close the table or list.
+
+<<._y_g
+<<.code>><<._y_first>><<._y_u
+<<.boxed
+{{{
+This
+paragraph
+will be
+line-wrapped,
+except for\\ the forced\\ line breaks.
+}}}
+>>>><<._y_u
+<<.boxed
+This
+paragraph
+will be
+line-wrapped,
+except for\\ the forced\\ line breaks.
+>>>>>>
+
+=== Headings
+
+An input line beginning with two or more consecutive equals sign
+(##=##, 0x003D) characters indicates a heading.
+The number of equals signs determines the level of the heading: two
+specifies a highest-level heading, three the next lower level, and so on.
+Whitespace between the equals signs and text is ignored.
+If the input line ends with a sequence of equals signs, these (and any
+whitespace before them) are removed.
+Inline markup is allowed within the text.
+
+<<._y_g
+<<.code>><<._y_first>><<._y_u
+<<.boxed
+{{{
+== First level heading ==
+Paragraph.
+=== __Second__ //level// heading
+Another paragraph.
+==== Third level ====
+===== Fourth level =====
+====== Fifth level ======
+}}}
+>>>><<._y_u
+<<.boxed
+== First level heading ==
+Paragraph.
+=== __Second__ //level// heading
+Another paragraph.
+==== Third level ====
+===== Fourth level =====
+====== Fifth level ======
+>>>>>>
+
+=== Rules
+
+A line containing only four or more hyphen (##-##, 0x002D) characters
+indicates a horizontal rule, like this:
+----
+
+=== Lists
+
+A group of lines each beginning with one or more of the characters
+asterisk (##*##, 0x002A), pound sign (##~###, 0x0023), colon
+(##:##, 0x003A), or semicolon (##;##, 0x003B), create lists.
+The asterisk character marks a simple unordered bullet list.
+The pound sign marks an ordered list, typically numbered.
+Colons and semicolons are used for "dictionary" lists, where the
+semicolon marks the term, and colon marks a definition.
+Lists can be nested by putting multiple marker characters at the
+beginning of each line.
+Here are some examples:
+
+<<._y_g
+<<.code>><<._y_first>><<._y_u
+<<.boxed
+{{{
+* Unordered
+* Bullet
+* List
+# Ordered
+# List
+; Term
+: Definition:
+Items can span lines
+* One
+** One.One
+** One.Two
+**# One.Two.One
+**# One.Two.Two
+* Two
+}}}
+>>>><<._y_u
+<<.boxed
+* Unordered
+* Bullet
+* List
+# Ordered
+# List
+; Term
+: Definition:
+Items can span lines
+* One
+** One.One
+** One.Two
+**# One.Two.One
+**# One.Two.Two
+* Two
+>>>>>>
+
+=== Tables
+
+Tables are made by encoding one or more consecutive table rows,
+in either of two ways.
+It is not necessary to introduce the table itself: the presence of the first
+row is sufficient.
+In WikiCreole-compatible style, each input line begins with a single
+pipe (##|##, 0x007C) character, and each line represents one
+table row, regardless of its contents.
+In extended style, each table row must begin with a double pipe,
+and input text is placed into that row until the next row begins
+with a double pipe.
+In both styles, cells within a row are separated by pipes.
+
+The first character of a table cell can be one of three special notations.
+An equal sign (as used for headings) marks the cell as a table heading
+rather than a normal cell.
+A less-than sign (##<##, 0x003C) causes that table cell to be merged
+with the cell to the left (note that the sign looks like it is pointing to the left).
+Finally, a caret (##^##, 0x005E) causes the cell to be merged with the
+cell above (note that it appears to point upward.)
+Multiple column spans and row spans can be marked this way.
+Any text contained in a spanned cell is ignored.
+Whitespace at the start and end of cell text is removed, so that tables
+can be laid out in a visually clear way in the source text.
+Here are some samples:
+
+<<.code>><<.boxed
+{{{
+||= 1         |= 2         |= 3          |= 4         |= 5
+|| One        | Two        | Span1       | Span2      |<
+|| First      | Second     |^            | Fourth     | Fifth
+|| Text spanning
+two lines     | 2
+| 3           | 4          | 5
+
+| WikiCreole | compatible | style
+| one table row | per input line
+This text starts a paragraph.
+}}}
+>>
+\\
+<<.boxed
+||= 1         |= 2         |= 3          |= 4         |= 5
+|| One        | Two        | Span1       | Span2      |<
+|| First      | Second     |^            | Fourth     | Fifth
+|| Text spanning
+two lines     | 2
+| 3           | 4          | 5
+
+| WikiCreole | compatible | style
+| one table row | per input line
+This text starts a paragraph.
+>>
+
+== Images
+
+Text inside double curly braces (##{## and ##}##, 0x007B and 0x007D)
+is used to include images.
+Text before the first pipe character indicates the address of the image,
+which may be a complete URL or a name that gets translated into a URL
+based on some namespace.
+Text after the pipe becomes the alternative text of the image.
+Alternative text is not parsed for markup.
+
+== Comments
+
+Text inside double curly braces, where the first character is an exclamation
+(##!##, 0x0021), is interpreted as a comment.
+This text will be retained in the document, but marked so that it will not
+be displayed.
+Note that this differs from extension comments---extension comments
+are removed completely, and will not appear in the output at all.
+Curly-brace comments appear in the output, but marked for non-display.
+Also, special-purpose EWC processors may interpret the contents of a
+comment to produce special effects on output.
+The contents of curly-brace comments are not parsed for markup.
+
+<<#links>>
+== Links
+
+Text inside double square brackets
+(##[## and ##]##, 0x005B and 0x005D) defines links.
+Text before the first pipe character indicates the target of the link,
+which may be a complete URL or a name that gets translated into a URL
+based on some namespace.
+Text after the pipe becomes the contents of the link.
+The text contents of a link are parsed for inline markup, and may
+contain images.
+
+Note: naked URLs in text are //not// automatically converted to links
+as they are in many wikis, unless explicitly specified in software.
+
+=== Internal link names
+
+Link names with no namespace prefix are interpreted as the name
+of an "internal" page.
+Such names are first mangled in a well-defined way, then appended
+to a base URL defined by the application.
+Name mangling proceeds as follows: first, leading and trailing
+whitespace is removed.
+Then, all alphabetic characters are lowercased---internal names
+are therefore case-insensitive.
+Finally, characters from the set (##":\"'%&?<>[]{}*+\\/`~;:@=|$"##)
+are encoded as a $ character followed by a 2-digit
+lowercase hex ASCII value.
+
+== Extensions
+
+Functions of EWC can be extended in many ways by the use of
+//extensions//, which are snippets of code or other text that are
+replaced with other text and markup.
+Extensions begin with double "angle brackets", or less-than
+(##<##, 0x003C) characters, and are closed with double
+greater-than (##>##, 0x003E) characters.
+Immediately after the opening brackets is the name of the
+extension, which specifies exactly how it is to be processed.
+The simplest extensions may have only a name; most will at least
+have some text after the name (and some whitespace), and
+some may have a block of text ending with the closing ##~>>##
+at the start of a line.
+Examples are shown below for the built-in extensions.
+
+Care must be taken with the closing brackets of an extension:
+Inline extenstions are closed at the first occurrence of ##~>>##
+on the same line, and block extensions are closed by the first
+line beginning with ##~>>##.
+If these occur inside text that is meant to be included in the
+extension, the extension code itself must provide some means
+of escaping them, or some other means must be used (this is
+often a simple matter of using the extension twice in the case
+of comments or raw sections, as detailed below).
+
+=== Comment
+
+The simplest extension simply removes its contents altogether,
+so it can be used to place commentary //about// the text in the
+text that will not be rendered in the output.
+For example:
+
+<<._y_g
+<<.code>><<._y_first>><<._y_u
+<<.boxed
+{{{
+Line <<comment XYZ 123>> one.
+Line <<! Here's a much
+longer comment.
+>>
+~>> two.
+}}}
+>>>><<._y_u
+<<.boxed
+Line <<comment XYZ 123>> one.
+Line <<! Here's a much
+longer comment.
+>> two.
+>>>>>>
+
+=== Raw
+
+The ##raw## extension causes its contents to be rendered
+exactly, without being processed for markup, much like the tilde
+escape does for single characters.
+
+<<._y_g
+<<.code>><<._y_first>><<._y_u
+<<.boxed
+<<raw
+{{{
+<<.not-a-style~>~>
+//not italic// **not bold**
+}}}
+>>
+{{{
+<<raw
+* Not a
+* list
+|| Not | a | table
+>>
+}}}
+>>>><<._y_u
+<<.boxed
+{{{
+<<.not-a-style>>
+//not italic// **not bold**
+}}}
+<<raw
+* Not a
+* list
+|| Not | a | table
+>>
+>>>>>>
+
+Note that the text is still line-wrapped as a paragraph---it merely
+ignores the markup.
+One must use the ##pre## or ##code## styles (see below)
+to prevent that.
+
+=== Include
+
+Double dollar sign (##$##, 0x0024) characters surrounding certain
+pre-defined variable names are replaced with the value of the variable.
+
+=== Footnotes
+
+== Styles
+
+Block elements and spans of text can be marked with style tags, identifying
+that element or span so that an external style sheet can act upon it.
+(the details of what a stylesheet does and how to program one are beyond
+the scope of this document).
+Style tags are delimited by double curly braces (##{## and ##}##,
+0x007B and 0x007D).
+Immediately following the opening braces is a name, possibly preceded
+by a single number sign character.
+If the name starts with a number sign character, then the name is treated
+as a unique identifier for the tagged element.
+Without the number sign (which will be the case for most tags), the name
+identifies a //class// of elements that share some property.
+Many style classes are predefined: for example, the class ##red##
+can be used to identify an element that should have its text colored red.
+
+If the name in a style tag is immediately followed by the closing braces,
+the tag will apply to the element following (there are more specific rules
+about what that means in ambiguous cases, but they generally do the
+"right" thing).
+Otherwise, the style applies to the text inside the braces.
+A special case is an opening tag at the start of a line with no closing:
+this begins a section of text that includes many block elements, and
+is closed only by double closing braces at the start of a line.
+Here are some examples, using all built-in style classes.
+
+<<._y_g
+<<.code>><<._y_first>><<._y_u
+<<.boxed
+{{{
+<<.right>>
+This paragraph will
+be right-justified
+
+This paragraph is normal,
+but <<.red these words>> are red.
+
+You can nest
+<<.sm INLINE <<.strikeout STYLES>>>> like this.
+}}}
+>>>><<._y_u
+<<.boxed
+<<.right>>
+This paragraph will
+be right-justified
+
+This paragraph is normal,
+but <<.red these words>> are red.
+
+You can nest
+<<.sm INLINE <<.strikeout STYLES>>>> like this.
+>>>>>>
+
+An identifier such as ##~#section-1## above has no specific
+effect, but serves to identify the section to a stylesheet that
+may choose to do something specific with it.
+Also, these identifiers can be used as the target for
+internal links.
+
+Multiple sections can be closed on a line (as are
+##~#section-1## and ##yellow-bg## in the example.
+These //must// appear at the beginning of a line, closed style tags
+may appear between the section close and new section open,
+and only one section open may appear, at the end of the line
+(and the line can contain only these block style tags).
+
+Some commonly used built-in style classes include ##pre##
+for "preformatted" text (that is, line breaks within the text will be
+preserved rather than wrapping), ##code## for text that is
+both preformatted and in a monspace font (for code listings),
+##wrap## to restore normal line wrapping (perhaps within a
+larger preformatted section), ##strikeout## to indicated
+deleted sections of text in legal documents, and ##quote##
+to indicate a block-style quotation.
+
+A few "magic" style classes cause some automatic side-effects.
+The classes ##pre## and ##code##, for example, not only cause
+the text of an element and its subelements to treat input text as
+preformatted, but also supresses the special character translations
+noted below for things like dashes and quotes.
+The class ##comment## causes its contents to appear in the
+output as comments---note that this differs from text inside a
+comment extension, which is removed from the output entirely.
+
+==== Shortcuts
+
+The classes ##i##, ##b##, ##u##, ##tt##, ##sub##, and ##sup##
+can be applied to a span by using shortcut characters, as shown in this table:
+
+||= Markup				|= Result			|= Notes
+|| Normal text				| Normal text		|
+|| ##~**Bold~**##			| **Bold**
+| At start of line followed by space, ##~**##
+will be treated as list item.
+|| ##~//Italic~//##			| //Italic//			|
+|| ##~__Underline~__##		| __Underline__		|
+|| ##~##Monospace#~###	| ##Monospace##	| Same note as ##~**## above
+|| ##Sub~,,script~,,##		| Sub,,script,,		|
+|| ##Super~^^script~^^##	| Super^^script^^	|
+
+== Special character translations
+
+In order to facilitate the entry of common non-ASCII characters such as
+proper dashes and quotation marks, a few character sequences are
+replaced after all block-level and inline markup processing.
+A sequence of three hyphen (##-##, 0x002D) characters is replaced
+with an em dash---like this.
+Two hypens is replaced with an en dash, for use in numeric ranges
+such as 0--10.
+Single and double quotation marks (##~'##, 0x0027, ##~"##, 0x0022)
+are replaced by "curly" quotes, as indicated by context.
+The algorithm for translating quoatation marks tries to be smart and
+makes some assumptions about ordinary English text.
+Where this fails, the use of the escape character (see below) may be
+needed, or curly quotes can be added directly by whatever means the
+host operating system allows.
+This processing does not occur in "preformatted" sections of text.
+
+== Compatibility
+
+The major incompatibility between EWC and WikiCreole is the fact that
+multiple text lines can be added to list items and table cells.
+For example, this markup:
+
+<<.code
+{{{
+* Unordered
+* List
+Text line
+}}}
+>>
+
+in WikiCreole will produce a list followed by a paragraph with the text
+"Text line".
+In EWC, "Text line" will be part of the second list item.
+A blank line (or the start of a table or different list type) is //required//
+to end the list.
+
+Likewise for tables: they must be terminated with a blank line to avoid
+adding following text to the last table cell.
+This does not apply to tables in "single-line mode", which behave just
+like WikiCreole tables (except that cells cannot begin with "^" or "<").
+
+The second incompatibility is the double-bar style of table markup.
+Despite these two differences, most WikiCreole texts should port
+directly to EWC without modification, and EWC texts can be converted
+the WikiCreole simply and automatically (adding blank lines where
+needed, for example).
+
+WikiCreole specifies the use of "~<~<" for extensions, but does not
+specify the semantics of any extensions.
+WikiCreole text that uses extensions other than those specified by EWC
+will produce unexpected results.

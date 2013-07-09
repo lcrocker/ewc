@@ -1,0 +1,187 @@
+This is a test file for EWC's dom.py.
+
+    >>> import dom
+    >>> import sys
+    >>> n0 = dom.Document()
+    >>> n1 = dom.Division(n0)
+    >>> n0.parent is None
+    True
+    >>> n1.parent is n0
+    True
+    >>> n1.attr.addClass("main")
+    >>> n1.attr.classes
+    ['main']
+    >>> n2 = dom.Division(n1)
+    >>> n2.attr.addClass("header")
+    >>> n3 = dom.Heading(n2, 1)
+    >>> n3.attr.map
+    {'x-level': u'1'}
+
+    >>> n3.addText("Title")
+    >>> len(n3.children)
+    1
+    >>> n3.children[0]._value
+    u'Title'
+    >>> n3.attr.hasClass("title")
+    False
+    >>> n3.attr.addClass("title")
+    >>> n3.attr.hasClass("title")
+    True
+    >>> n3.attr.hasClass("fred")
+    False
+    >>> n3.attr["id"] = "pagetitle"
+    >>> n3.attr.map
+    {'x-level': u'1', 'id': u'pagetitle'}
+
+    >>> a = dom.AttributeMap()
+    >>> a.addClass("newclass")
+    >>> a['fred'] = 'flintstone'
+    >>> a.classes
+    ['newclass']
+    >>> a.map
+    {'fred': u'flintstone'}
+    >>> a.merge(n3.attr)
+    >>> a.classes
+    ['newclass', 'title']
+    >>> a.map
+    {'x-level': u'1', 'id': u'pagetitle', 'fred': u'flintstone'}
+    >>> a.addStyle("color:white")
+    >>> a.addStyle("background-color:black")
+    >>> a.styles
+    {'color': u'white', 'background-color': u'black'}
+    >>> a.classval()
+    u'newclass title'
+    >>> a.styleval()
+    u'color:white;background-color:black'
+
+    >>> n4 = dom.Paragraph(n2)
+    >>> n4.addText("Long subtitle.")
+    >>> n4.children[0]._value
+    u'Long subtitle.'
+    >>> n4.addText("More text.")
+    >>> len(n4.children)
+    1
+    >>> n4.children[0]._value 
+    u'Long subtitle.\nMore text.'
+    >>> n4.attr.addClass("subtitle")
+    >>> n4.attr.classes
+    ['subtitle']
+
+    >>> n2 = dom.Division(n1)
+    >>> n2.attr.addClass("content")
+    >>> n3 = dom.Heading(n2, 2)
+    >>> n3.addText("First section")
+    >>> n3 = dom.Paragraph(n2)
+    >>> n3.addText("This is the text")
+    >>> n0.dump()
+     Document (1)
+     _ Division (2)
+     _ _ Division (2)
+     _ _ _ Heading (1)
+     _ _ _ _ Text (5)
+     _ _ _ Paragraph (1)
+     _ _ _ _ Text (25)
+     _ _ Division (2)
+     _ _ _ Heading (1)
+     _ _ _ _ Text (13)
+     _ _ _ Paragraph (1)
+     _ _ _ _ Text (16)
+
+    >>> temp = n2[0]
+    >>> n2[0] = n2[1]
+    >>> n2[1] = temp
+    >>> n2.dump()
+     Division (2)
+     _ Paragraph (1)
+     _ _ Text (16)
+     _ Heading (1)
+     _ _ Text (13)
+    >>> t = dom.Text(n3, " of the first paragraph.")
+    >>> n3.dump()
+     Paragraph (2)
+     _ Text (16)
+     _ Text (24)
+    >>> n2.normalize()
+    >>> n3.dump()
+     Paragraph (1)
+     _ Text (40)
+    >>> n3.append(dom.ListItem()) #doctest: +ELLIPSIS
+    Traceback (most recent call last):
+        ...
+    NestingError: ...
+
+    >>> n3 = dom.OrderedList(n2)
+    >>> n3.attr.addStyle("list-style-type: upper-roman")
+    >>> n4 = dom.ListItem(n3)
+    >>> n4.addText("Item 1")
+    >>> n4 = dom.ListItem(n3)
+    >>> n4.addText("Item 2")
+    >>> n4 = dom.ListItem(n3)
+    >>> n4.addText("Item 3")
+    >>> n3 = dom.Table(n2)
+    >>> n4 = dom.TableRow(n3)
+    >>> n5 = dom.TableHeading(n4)
+    >>> n5 = dom.TableHeading(n4)
+    >>> n5.addText("One")
+    >>> n5 = dom.TableHeading(n4)
+    >>> n5.addText("Two")
+    >>> n4 = dom.TableRow(n3)
+    >>> n5 = dom.TableHeading(n4)
+    >>> n5.addText("Three")
+    >>> n5 = dom.TableData(n4)
+    >>> n5.addText("Data")
+    >>> n5 = dom.TableHeading(n4)
+    >>> n5.addText("Data")
+    >>> n4 = dom.TableRow(n3)
+    >>> n5 = dom.TableHeading(n4)
+    >>> n5.addText("Four")
+    >>> n5 = dom.TableData(n4)
+    >>> n5.addText("Data")
+    >>> n5 = dom.TableHeading(n4)
+    >>> n5.addText("Data")
+    >>> n0.dump()
+     Document (1)
+     _ Division (2)
+     _ _ Division (2)
+     _ _ _ Heading (1)
+     _ _ _ _ Text (5)
+     _ _ _ Paragraph (1)
+     _ _ _ _ Text (25)
+     _ _ Division (4)
+     _ _ _ Paragraph (1)
+     _ _ _ _ Text (40)
+     _ _ _ Heading (1)
+     _ _ _ _ Text (13)
+     _ _ _ OrderedList (3)
+     _ _ _ _ ListItem (1)
+     _ _ _ _ _ Text (6)
+     _ _ _ _ ListItem (1)
+     _ _ _ _ _ Text (6)
+     _ _ _ _ ListItem (1)
+     _ _ _ _ _ Text (6)
+     _ _ _ Table (3)
+     _ _ _ _ TableRow (3)
+     _ _ _ _ _ TableHeading (0)
+     _ _ _ _ _ TableHeading (1)
+     _ _ _ _ _ _ Text (3)
+     _ _ _ _ _ TableHeading (1)
+     _ _ _ _ _ _ Text (3)
+     _ _ _ _ TableRow (3)
+     _ _ _ _ _ TableHeading (1)
+     _ _ _ _ _ _ Text (5)
+     _ _ _ _ _ TableData (1)
+     _ _ _ _ _ _ Text (4)
+     _ _ _ _ _ TableHeading (1)
+     _ _ _ _ _ _ Text (4)
+     _ _ _ _ TableRow (3)
+     _ _ _ _ _ TableHeading (1)
+     _ _ _ _ _ _ Text (4)
+     _ _ _ _ _ TableData (1)
+     _ _ _ _ _ _ Text (4)
+     _ _ _ _ _ TableHeading (1)
+     _ _ _ _ _ _ Text (4)
+
+    >>> v = dom.HTMLDomVisitor()
+    >>> sys.stdout.writelines(n0.visit(v))
+    <div class="main"><div class="header"><h1 class="title" id="pagetitle">Title</h1><p class="subtitle">Long subtitle.
+    More text.</p></div><div class="content"><p>This is the text of the first paragraph.</p><h2>First section</h2><ol style="list-style-type:upper-roman"><li>Item 1</li><li>Item 2</li><li>Item 3</li></ol><table><tr><th /><th>One</th><th>Two</th></tr><tr><th>Three</th><td>Data</td><th>Data</th></tr><tr><th>Four</th><td>Data</td><th>Data</th></tr></table></div></div>
